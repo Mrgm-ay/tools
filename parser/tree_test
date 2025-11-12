@@ -1,0 +1,82 @@
+import os
+
+class Elements:
+    """複数カテゴリの要素を保持"""
+    def __init__(self):
+        self.data = {"includes": [], "sources": []}
+
+    def add(self, category, item):
+        if category not in self.data:
+            self.data[category] = []
+        self.data[category].append(item)
+
+    def get(self, category):
+        return list(self.data.get(category, []))
+
+    def get_all(self):
+        return {k: list(v) for k, v in self.data.items()}
+
+    def __repr__(self):
+        return f"Elements({self.data})"
+
+
+class Node:
+    def __init__(self, path, parent=None, root_dir=None):
+        self.path = path
+        self.name = os.path.basename(path)
+        self.parent = parent
+        self.children = []
+        self.elements = Elements()
+        if parent:
+            parent.children.append(self)
+            self.root_dir = parent.root_dir
+        else:
+            self.root_dir = root_dir or os.path.dirname(os.path.abspath(path))
+
+    def add_child(self, path):
+        return Node(path, parent=self)
+
+    def traverse(self, depth=0):
+        indent = "  " * depth
+        e = self.elements.get_all()
+        print(f"{indent}- {self.name}")
+        print(f"{indent}  includes: {e['includes']}")
+        print(f"{indent}  sources : {e['sources']}")
+        for c in self.children:
+            c.traverse(depth + 1)
+
+
+def build_tree_from_file(file_path, parent=None, root_dir=None):
+    node = Node(file_path, parent, root_dir)
+
+    if not os.path.exists(file_path):
+        print(f"警告: {file_path} が存在しません")
+        return node
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            # --- -I 行（includeパス） ---
+            if line.startswith("-I"):
+                path = line[2:].strip()
+                abs_path = os.path.normpath(os.path.join(os.path.dirname(file_path), path))
+                rel_path = os.path.relpath(abs_path, node.root_dir)
+                node.elements.add("includes", rel_path)
+
+            # --- .c 行（ソースファイル） ---
+            elif ".c" in line:
+                src_path = line.split(".c")[0] + ".c"
+                abs_path = os.path.normpath(os.path.join(os.path.dirname(file_path), src_path))
+                rel_path = os.path.relpath(abs_path, node.root_dir)
+                node.elements.add("sources", rel_path)
+
+            # --- .gpj 行（子ノード） ---
+            elif ".gpj" in line:
+                sub_path = line.split(".gpj")[0] + ".gpj"
+                abs_path = os.path.normpath(os.path.join(os.path.dirname(file_path), sub_path))
+                build_tree_from_file(abs_path, parent=node, root_dir=node.root_dir)
+
+    return node
