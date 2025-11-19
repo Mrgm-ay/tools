@@ -1,1 +1,197 @@
-test
+from typing import Optional, Any, List
+
+class Node:
+    """
+    ツリー構造における単一のノードを表すクラス。
+
+    各ノードは、名称、親ノードへの参照、子ノードのリスト、
+    およびノード固有の要素を格納する辞書を持ちます。
+    """
+    def __init__(self, name: str, parent=None):
+        """
+        Nodeを初期化します。
+
+        Args:
+            name (str): ノードの名称。
+            parent (Node, optional): 親ノードへの参照。ルートノードの場合はNone。
+        """
+        # 自身の名称
+        self.name: str = name
+        
+        # 親ノード参照 (ルートノードのみ None)
+        self.parent: 'Node' = parent
+        
+        # 子ノード参照 (Nodeオブジェクトのリスト)
+        self.children: list['Node'] = []
+        
+        # 自身が直接持つ要素を格納する辞書
+        # 例: {"key1": "value1", "data_size": 1024}
+        self.elements: dict = {}
+
+        # 親ノードが指定されていれば、自分自身を親の子リストに追加する
+        if self.parent:
+            self.parent.add_child(self)
+
+    def __repr__(self):
+        """オブジェクトの公式な文字列表現を返します。"""
+        return f"Node(name='{self.name}', elements_count={len(self.elements)}, children_count={len(self.children)})"
+
+    def __str__(self):
+        """オブジェクトの分かりやすい文字列表現を返します。"""
+        return f"[{self.name}]"
+    
+    # ----------------------------------------
+    # 1. ツリー構造の操作・管理
+    # ----------------------------------------
+
+    def add_child(self, child: 'Node'):
+        """
+        子ノードを追加します。
+        既に子リストに含まれている場合は追加しません。
+        また、子ノードの親が自分自身になるように設定します。
+        
+        Args:
+            child (Node): 追加する子ノードオブジェクト。
+        """
+        if child not in self.children:
+            # 既に別の親がいる場合、その親から子ノードを削除
+            if child.parent is not None and child.parent is not self:
+                # remove_childメソッドの存在を前提とする
+                # 循環インポートを防ぐため、ここでは単純な操作に留める
+                if child in child.parent.children:
+                    child.parent.children.remove(child)
+
+            # 親子関係を設定
+            child.parent = self
+            self.children.append(child)
+        
+    def remove_child(self, child_name: str) -> Optional['Node']:
+        """
+        指定された名称の子ノードを削除します。
+        
+        Args:
+            child_name (str): 削除する子ノードの名称。
+
+        Returns:
+            Optional[Node]: 削除されたノードオブジェクト。見つからなかった場合は None。
+        """
+        for i, child in enumerate(self.children):
+            if child.name == child_name:
+                removed_child = self.children.pop(i)
+                removed_child.parent = None # 削除されたノードの親をNoneにする
+                return removed_child
+        return None
+
+    # ----------------------------------------
+    # 2. 要素（Elements）の操作
+    # ----------------------------------------
+
+    def set_element(self, key: str, value: Any):
+        """
+        `elements`辞書にキーと値を設定します。
+        
+        Args:
+            key (str): 要素のキー。
+            value (Any): 要素の値。
+        """
+        self.elements[key] = value
+
+    def get_element(self, key: str, default: Any = None) -> Any:
+        """
+        `elements`辞書から指定されたキーの値を取得します。
+        
+        Args:
+            key (str): 取得する要素のキー。
+            default (Any, optional): キーが存在しない場合に返すデフォルト値。デフォルトは None。
+            
+        Returns:
+            Any: 要素の値、またはデフォルト値。
+        """
+        return self.elements.get(key, default)
+
+    def remove_element(self, key: str) -> Optional[Any]:
+        """
+        `elements`辞書から指定されたキーを削除し、その値を返します。
+        
+        Args:
+            key (str): 削除する要素のキー。
+            
+        Returns:
+            Optional[Any]: 削除された要素の値。キーが存在しない場合は None。
+        """
+        return self.elements.pop(key, None)
+
+    # ----------------------------------------
+    # 3. プロパティの取得
+    # ----------------------------------------
+
+    def is_root(self) -> bool:
+        """
+        自身がルートノードであるか（`parent`が`None`か）を判定します。
+        
+        Returns:
+            bool: ルートノードであれば True、そうでなければ False。
+        """
+        return self.parent is None
+    
+    # ----------------------------------------
+    # 4. 新規追加API
+    # ----------------------------------------
+    
+    def get_root_path_node(self) -> List['Node']:
+        """
+        自身のノードからルートノードまでの、兄弟を含めないノードの参照（自身を含む）
+        をリストに順に（ルートから自身へ向かって）取得します。
+        
+        Returns:
+            List[Node]: ルートノードから現在のノードまでのパス上のノードのリスト。
+        """
+        path = [self]
+        current = self.parent
+        while current:
+            path.append(current)
+            current = current.parent
+        
+        # リストの順序をルートノードから現在のノードへ反転させる
+        return list(reversed(path))
+
+
+# --- 使用例 ---
+
+# ルートノードの作成
+root = Node("Root")
+root.set_element("owner", "Admin")
+
+# 子ノードの作成 (コンストラクタで親を指定 -> add_childが呼ばれる)
+documents = Node("Documents", parent=root)
+documents.set_element("created_by", "UserA")
+
+# 孫ノードの作成
+report = Node("Report", parent=documents)
+report.set_element("status", "Draft")
+
+# 別の子ノードの追加
+images = Node("Images")
+root.add_child(images)
+images.set_element("count", 10)
+
+# APIの動作確認
+print("--- 基本情報 ---")
+print(f"Rootノードか: {root.is_root()}")        # True
+print(f"Documentsノードか: {documents.is_root()}") # False
+print(f"Reportの作成者: {report.get_element('created_by', 'N/A')}") # N/A (自身にはない)
+print(f"Documentsの作成者: {documents.get_element('created_by')}") # UserA
+report.remove_element("status")
+print(f"ReportのStatusを削除: {report.get_element('status', 'Deleted')}") # Deleted
+
+print("\n--- パス取得 (Report -> Root) ---")
+# パス上のノードオブジェクトのリストを取得
+path_nodes = report.get_root_path_node()
+print([node.name for node in path_nodes]) # ['Root', 'Documents', 'Report']
+
+print("\n--- 子ノード操作 ---")
+# ImagesノードをRootから削除
+removed = root.remove_child("Images")
+print(f"削除されたノード名: {removed.name if removed else 'None'}") # Images
+print(f"Rootの子ノードリスト: {[child.name for child in root.children]}") # ['Documents']
+
