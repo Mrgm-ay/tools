@@ -1,4 +1,4 @@
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 
 class Node:
     """
@@ -56,7 +56,6 @@ class Node:
         if child not in self.children:
             # 既に別の親がいる場合、その親から子ノードを削除
             if child.parent is not None and child.parent is not self:
-                # remove_childメソッドの存在を前提とする
                 # 循環インポートを防ぐため、ここでは単純な操作に留める
                 if child in child.parent.children:
                     child.parent.children.remove(child)
@@ -135,7 +134,7 @@ class Node:
         return self.parent is None
     
     # ----------------------------------------
-    # 4. 新規追加API
+    # 4. パスの取得
     # ----------------------------------------
     
     def get_root_path_node(self) -> List['Node']:
@@ -154,44 +153,63 @@ class Node:
         
         # リストの順序をルートノードから現在のノードへ反転させる
         return list(reversed(path))
+    
+    def get_all_path_elements(self) -> Dict[str, Dict[str, Any]]:
+        """
+        get_root_path_nodeで受け取った全てのノードのelementsをラップする辞書型で
+        ノード名と紐づけて取得します。
+
+        戻り値の構造:
+        {
+            "NodeName1": {"key1": "value1", ...},  # Rootノードの要素
+            "NodeName2": {"keyA": "valueA", ...},  # 子ノードの要素
+            ...
+        }
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: パス上のノード名と、そのノードが持つelements辞書を
+                                        対応付けた辞書。
+        """
+        path_nodes = self.get_root_path_node()
+        
+        # 結果を格納する辞書
+        all_elements: Dict[str, Dict[str, Any]] = {}
+        
+        # パス上の各ノードから要素を取得
+        for node in path_nodes:
+            all_elements[node.name] = node.elements.copy() # 要素のコピーを格納
+            
+        return all_elements
 
 
 # --- 使用例 ---
 
-# ルートノードの作成
-root = Node("Root")
-root.set_element("owner", "Admin")
+print("--- ノード構造の構築と要素の設定 ---")
+root = Node("SystemRoot")
+root.set_element("level", 0)
+root.set_element("secure", True)
 
-# 子ノードの作成 (コンストラクタで親を指定 -> add_childが呼ばれる)
-documents = Node("Documents", parent=root)
-documents.set_element("created_by", "UserA")
+user_data = Node("UserData", parent=root)
+user_data.set_element("quota_gb", 100)
+user_data.set_element("owner", "System")
 
-# 孫ノードの作成
-report = Node("Report", parent=documents)
-report.set_element("status", "Draft")
+profiles = Node("Profiles", parent=user_data)
+profiles.set_element("total_users", 5)
+profiles.set_element("access_type", "R/W")
 
-# 別の子ノードの追加
-images = Node("Images")
-root.add_child(images)
-images.set_element("count", 10)
+print(f"現在のノード: {profiles.name}")
 
-# APIの動作確認
-print("--- 基本情報 ---")
-print(f"Rootノードか: {root.is_root()}")        # True
-print(f"Documentsノードか: {documents.is_root()}") # False
-print(f"Reportの作成者: {report.get_element('created_by', 'N/A')}") # N/A (自身にはない)
-print(f"Documentsの作成者: {documents.get_element('created_by')}") # UserA
-report.remove_element("status")
-print(f"ReportのStatusを削除: {report.get_element('status', 'Deleted')}") # Deleted
+print("\n--- get_all_path_elements の実行結果 ---")
+# Profilesノードからルートまでの全要素を取得
+all_elements = profiles.get_all_path_elements()
+print(all_elements)
 
-print("\n--- パス取得 (Report -> Root) ---")
-# パス上のノードオブジェクトのリストを取得
-path_nodes = report.get_root_path_node()
-print([node.name for node in path_nodes]) # ['Root', 'Documents', 'Report']
+# 結果の確認
+# SystemRootの要素: {'level': 0, 'secure': True}
+# UserDataの要素: {'quota_gb': 100, 'owner': 'System'}
+# Profilesの要素: {'total_users': 5, 'access_type': 'R/W'}
 
-print("\n--- 子ノード操作 ---")
-# ImagesノードをRootから削除
-removed = root.remove_child("Images")
-print(f"削除されたノード名: {removed.name if removed else 'None'}") # Images
-print(f"Rootの子ノードリスト: {[child.name for child in root.children]}") # ['Documents']
+print("\n--- 個別要素の確認 ---")
+print(f"Profilesノードの total_users: {all_elements['Profiles'].get('total_users')}")
+print(f"SystemRootノードの secure: {all_elements['SystemRoot'].get('secure')}")
 
